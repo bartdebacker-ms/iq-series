@@ -121,7 +121,9 @@ class PassageOnlyCookbookTests(unittest.TestCase):
                     response(200, {"webResults": []}),
                 ]
                 with contextlib.redirect_stdout(io.StringIO()):
-                    result = self.namespace["web_search"]("trees")
+                    result = self.namespace["web_post"](
+                        "/search/web", {"query": "trees", "contentFormat": "passage"},
+                    )
                 self.assertEqual(result, {"webResults": []})
                 self.namespace["time"].sleep.assert_called_once_with(2)
 
@@ -131,7 +133,9 @@ class PassageOnlyCookbookTests(unittest.TestCase):
                 self.setUp()
                 self.namespace["session"].post.return_value = response(status, {"errorCode": error_code, "traceId": "test-trace"})
                 with self.assertRaises(self.namespace["WebIQError"]) as error:
-                    self.namespace["web_search"]("trees")
+                    self.namespace["web_post"](
+                        "/search/web", {"query": "trees", "contentFormat": "passage"},
+                    )
                 self.assertIn("test-trace", str(error.exception))
                 self.namespace["session"].post.assert_called_once()
                 self.namespace["time"].sleep.assert_not_called()
@@ -139,7 +143,9 @@ class PassageOnlyCookbookTests(unittest.TestCase):
     def test_server_failure_is_bounded_and_remains_an_error(self):
         self.namespace["session"].post.return_value = response(503, {"errorCode": "InternalServerError"})
         with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(self.namespace["WebIQError"]):
-            self.namespace["web_search"]("trees")
+            self.namespace["web_post"](
+                "/search/web", {"query": "trees", "contentFormat": "passage"},
+            )
         self.assertEqual(self.namespace["session"].post.call_count, 4)
         self.assertEqual(self.namespace["time"].sleep.call_count, 3)
 
@@ -148,12 +154,17 @@ class PassageOnlyCookbookTests(unittest.TestCase):
         bad_response.json.side_effect = ValueError("not JSON")
         self.namespace["session"].post.side_effect = [bad_response, response(200, {"webResults": []})]
         with contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(self.namespace["web_search"]("trees"), {"webResults": []})
+            self.assertEqual(
+                self.namespace["web_post"]("/search/web", {"query": "trees", "contentFormat": "passage"}),
+                {"webResults": []},
+            )
         self.setUp()
         bad_response.status_code = 200
         self.namespace["session"].post.return_value = bad_response
         with self.assertRaisesRegex(ValueError, "not JSON"):
-            self.namespace["web_search"]("trees")
+            self.namespace["web_post"](
+                "/search/web", {"query": "trees", "contentFormat": "passage"},
+            )
 
     def test_video_moment_requires_an_in_range_index_and_url(self):
         load_definitions(cell_containing("def video_source_url"), self.namespace)
